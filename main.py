@@ -20,9 +20,9 @@ from app_quantile_regression.qdt import DecisionTreeQuantileRegressor
 
 st.set_page_config(layout="wide")
 
-st.sidebar.markdown("## Select input data")
-df=pd.read_csv("electricity2.csv")
+st.sidebar.title("1. Data")
 
+df=pd.read_csv("electricity2.csv")
 
 cols = df.columns
 datefield = st.sidebar.selectbox('Date variable',list(cols))
@@ -37,39 +37,18 @@ if df[target].dtype.kind!="f":
     st.markdown("Please select appropriate target")
     st.stop()
 
-st.sidebar.write('Target:', target )
-
-exogenous = st.sidebar.multiselect('Select exogenous variables',
-                                list(set(cols)-set([target,datefield])),
-                                list(set(cols)-set([target,datefield])))
-
-other_time_series = st.sidebar.multiselect('Other time Series',
-                                list(set(cols)-set([target,datefield])),
-                                list(set(cols)-set([target,datefield])))
-
-# Condition to continue
-cond = False
-for v in df[exogenous].dtypes.values:
-    if str(v)=="object":
-        cond=True
-if cond:
-    st.stop() 
-
-cond = False
-for v in df[other_time_series].dtypes.values:
-    if str(v)=="object":
-        cond=True
-if cond:
-    st.stop() 
-
+limit = st.sidebar.slider('Limit', 0, len(df), 1000)
+df=df[-limit:]
 
 # Feature Selection
 feat_selected = []
 
+st.sidebar.title("2. Predictors")
+
 # Periods
 periods = st.sidebar.text_input("Periods")
 if periods != "":
-    periods = map(float, periods.split(" "))
+    periods = map(float, periods.split(","))
     n = np.arange(len(df))
 
     for period in periods:
@@ -78,30 +57,21 @@ if periods != "":
         df["s"+str(period)] = np.sin(2.0*n*np.pi/period)
         feat_selected.append("s"+str(period))
 
-# Exogenous features
-if len(exogenous)>0:
-    st.sidebar.markdown("# Exogenous Variables")
-    cal_features = []
-    for cal_feat in exogenous:
-        cal_features.append(st.sidebar.checkbox(cal_feat, True))
+# Lagged Values
+lags = st.sidebar.text_input("Lagged Values")
+if lags != "":
+    lags = map(int, lags.split(","))
+    n = np.arange(len(df))
 
-    feat_selected += list(exogenous[cal_features])
-
-st.sidebar.markdown("Lagged features")
-
-for col_name in other_time_series+[target]:
-    lagt = st.sidebar.text_input(f"{col_name} lags")
-    if lagt != "":
-        lagt = map(int, lagt.split(" "))
-        for l in lagt:
-            df[f"{col_name} - "+str(l)] = df[col_name].shift(l)
-            feat_selected.append(f"{col_name} - "+str(l))
+    for lag in lags:
+        df[f"target - {str(lag)}"] = df[target].shift(lag)
+        feat_selected.append(f"target - {str(lag)}")
 
 df = df.dropna()
 
 # Stop is no feature is selected
 if len(feat_selected)==0:
-    st.markdown("Please select at least a predictor")
+    st.markdown("Please select at least a period of lagged value")
     st.stop()
 
 # Building model selection
@@ -109,12 +79,14 @@ if len(feat_selected)==0:
 X = df[feat_selected]
 y = df[target]
 
+st.sidebar.title("3. Metrics")
 cut = st.sidebar.slider('Training - Test Cut', 0, len(df), int(4*len(df)/5))
 X_train = X.iloc[:cut]
 y_train = y.iloc[:cut]
 X_test = X.iloc[cut:]
 y_test = y.iloc[cut:]
 
+st.sidebar.title("4. Models")
 depth = st.sidebar.number_input("Depth", 3, 14, 4)
 qreg = DecisionTreeQuantileRegressor(int(depth))
 
@@ -147,7 +119,12 @@ draw_df["50"]=preds["50"].values
 draw_df["90"]=preds["90"].values
 draw_df["target"]=y_test.values
 draw_df["date"]=df[datefield].iloc[cut:].values
-draw_df = draw_df.iloc[pt_sel-100:pt_sel+100]
+
+sel_date = draw_df["date"].iloc[pt_sel]
+low_index = np.max([0,pt_sel-100])
+high_index = np.min([len(draw_df),pt_sel+100])
+draw_df = draw_df.iloc[low_index:high_index]
+
 
 c = alt.Chart(draw_df).mark_line().encode(
     x="date:T",
@@ -169,6 +146,11 @@ alt.Chart(draw_df).mark_line().encode(
     y="target",
     color=alt.value("blue"),
     tooltip="date"
+).interactive()+\
+    alt.Chart(pd.DataFrame({
+  'Date': [sel_date]
+})).mark_rule().encode(
+  x='Date:T'
 ).interactive()
 st.altair_chart(c,use_container_width=True)
 
