@@ -157,7 +157,6 @@ low_index = np.max([0,pt_sel-100])
 high_index = np.min([len(draw_df),pt_sel+100])
 draw_df = draw_df.iloc[low_index:high_index]
 
-
 c = alt.Chart(draw_df).mark_line().encode(
     x="date:T",
     y="10",
