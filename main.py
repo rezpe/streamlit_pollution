@@ -20,7 +20,16 @@ from app_quantile_regression.qdt import DecisionTreeQuantileRegressor
 
 st.set_page_config(layout="wide")
 
+st.sidebar.header("Time Series Forecasting with ML models")
+
 st.sidebar.title("1. Data")
+
+with st.sidebar.expander("What is this ?"):
+    st.write("""In this section, you will be able 
+    in the future to load your own data in order to
+    perform the predictions and then
+    specify the date and target columns. For now, it 
+    is predefined""")
 
 df=pd.read_csv("electricity2.csv")
 
@@ -37,13 +46,23 @@ if df[target].dtype.kind!="f":
     st.markdown("Please select appropriate target")
     st.stop()
 
-limit = st.sidebar.slider('Limit', 0, len(df), 1000)
+limit = st.sidebar.slider('Limit (to reduce processing)', 0, len(df), 1000)
 df=df[-limit:]
 
 # Feature Selection
 feat_selected = []
 
 st.sidebar.title("2. Predictors")
+
+with st.sidebar.expander("What is this ?"):
+    st.write("""In this section, you can 
+    select the signal periodic function
+    so your model learns the seasonality.
+    You can also define lagged values which 
+    are the values in the past used to 
+    predict the future. The minimum lagged value 
+    can be considered the horizon of 
+    forecasting.""")
 
 # Periods
 periods = st.sidebar.text_input("Periods")
@@ -80,6 +99,11 @@ X = df[feat_selected]
 y = df[target]
 
 st.sidebar.title("3. Metrics")
+
+with st.sidebar.expander("What is this ?"):
+    st.write("""In this section, you can 
+    select the training/test cut.""")
+
 cut = st.sidebar.slider('Training - Test Cut', 0, len(df), int(4*len(df)/5))
 X_train = X.iloc[:cut]
 y_train = y.iloc[:cut]
@@ -87,6 +111,11 @@ X_test = X.iloc[cut:]
 y_test = y.iloc[cut:]
 
 st.sidebar.title("4. Models")
+with st.sidebar.expander("What is this ?"):
+    st.write("""In this section, you can 
+    select the ML model and some of its 
+    hyperparameters.""")
+
 depth = st.sidebar.number_input("Depth", 3, 14, 4)
 qreg = DecisionTreeQuantileRegressor(int(depth))
 
@@ -97,9 +126,12 @@ preds = qreg.predict(X_test)
 rmse = np.round(np.mean((y_test.values - preds["50"])**2), 2)
 bias = np.round(np.mean((y_test.values - preds["50"])), 2)
 
+st.header("The metrics of your model are:")
 st.metric(label="RMSE", value=rmse)
 st.metric(label="BIAS", value=bias)
 
+
+st.header("Select a point in the chart below to see the prediction at that point.")
 fig = px.line(data_frame=df.iloc[cut:],y=target,x=datefield,
             title="Target Variable Evolution",
             labels={ 
